@@ -4,9 +4,31 @@
 #include <vector>
 #include <memory>
 #include <type_traits>
-#include <opencv2/opencv.hpp>
+
+// Forward declaration to avoid OpenCV dependency in header
+namespace cv { class Mat; }
 
 namespace FocusStackSDK {
+
+// Raw image data structure for library-independent interface
+struct RawImageData {
+    void* data;           // Pointer to image data
+    int width;            // Image width in pixels
+    int height;           // Image height in pixels
+    int channels;         // Number of channels (1=grayscale, 3=RGB, 4=RGBA)
+    int depth;            // Bit depth per channel (8, 16, 32)
+    size_t step;          // Bytes per row (including padding)
+    
+    RawImageData() : data(nullptr), width(0), height(0), channels(0), depth(0), step(0) {}
+    RawImageData(void* d, int w, int h, int c, int dep, size_t s) 
+        : data(d), width(w), height(h), channels(c), depth(dep), step(s) {}
+    
+    // Calculate total data size
+    size_t dataSize() const { return step * height; }
+    
+    // Check if data is valid
+    bool isValid() const { return data != nullptr && width > 0 && height > 0 && channels > 0; }
+};
 
 // Error codes for SDK operations
 enum class ErrorCode {
@@ -213,12 +235,18 @@ public:
     VoidResult processImages(
         const std::vector<const cv::Mat*>& imagePointers,
         const FocusStackOptions::Config& config);
+    
+    // Batch processing interface with raw pointers (library-independent)
+    VoidResult processRawImages(
+        const std::vector<RawImageData>& rawImages,
+        const FocusStackOptions::Config& config);
 
     // Streaming interface
     VoidResult startProcessing(const FocusStackOptions::Config& config);
     VoidResult addImage(const std::string& imagePath);
     VoidResult addImage(const cv::Mat& image);
     VoidResult addImage(const cv::Mat* imagePointer);
+    VoidResult addRawImage(const RawImageData& rawImage);
     VoidResult finishProcessing();
 
     // Status and control
@@ -236,6 +264,12 @@ public:
     const cv::Mat* getDepthMapPtr() const;
     const cv::Mat* get3DPreviewPtr() const;
     const cv::Mat* getForegroundMaskPtr() const;
+    
+    // Result access (raw pointers - library-independent, zero-copy)
+    RawImageData getResultImageRaw() const;
+    RawImageData getDepthMapRaw() const;
+    RawImageData get3DPreviewRaw() const;
+    RawImageData getForegroundMaskRaw() const;
 
     // Result saving
     VoidResult saveResult(const std::string& path) const;
@@ -277,6 +311,11 @@ public:
     static VoidResult processWithDefaults(
         const std::vector<const cv::Mat*>& imagePointers,
         const std::string& outputPath);
+    
+    // Simple processing with raw pointers (library-independent)
+    static VoidResult processWithDefaults(
+        const std::vector<RawImageData>& rawImages,
+        const std::string& outputPath);
 
     // Processing with custom options
     static VoidResult processWithOptions(
@@ -286,6 +325,11 @@ public:
     // Processing with pointers and custom options (more efficient)
     static VoidResult processWithOptions(
         const std::vector<const cv::Mat*>& imagePointers,
+        const FocusStackOptions::Config& config);
+    
+    // Processing with raw pointers and custom options (library-independent)
+    static VoidResult processWithOptions(
+        const std::vector<RawImageData>& rawImages,
         const FocusStackOptions::Config& config);
 };
 

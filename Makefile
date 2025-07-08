@@ -57,6 +57,11 @@ simple_pointer_output_test: build/simple_pointer_output_test
 build/simple_pointer_output_test: simple_pointer_output_test.cc src/FocusStackSDK.cc $(OBJS)
 	$(CXX) $(CXXFLAGS) -I. -Isrc $< src/FocusStackSDK.cc $(OBJS) $(LDFLAGS) -o $@
 
+raw_pointer_interface_test: build/raw_pointer_interface_test
+
+build/raw_pointer_interface_test: raw_pointer_interface_test.cc src/FocusStackSDK.cc $(OBJS)
+	$(CXX) $(CXXFLAGS) -I. -Isrc $< src/FocusStackSDK.cc $(OBJS) $(LDFLAGS) -o $@
+
 update_docs: docs/focus-stack.1 docs/focus-stack.html
 
 run_unittests: build/unittests
