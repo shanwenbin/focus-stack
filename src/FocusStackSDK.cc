@@ -377,6 +377,57 @@ VoidResult ThreadSafeFocusStacker::processImages(
     }
 }
 
+VoidResult ThreadSafeFocusStacker::processImages(
+    const std::vector<const cv::Mat*>& imagePointers,
+    const FocusStackOptions::Config& config) {
+    
+    if (imagePointers.empty()) {
+        return ErrorCode::InvalidInput;
+    }
+    
+    // Validate all pointers before processing
+    for (size_t i = 0; i < imagePointers.size(); ++i) {
+        if (!imagePointers[i]) {
+            return ErrorCode::InvalidInput;
+        }
+    }
+    
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (m_impl->isProcessing) {
+        return ErrorCode::ProcessingFailed;
+    }
+    
+    try {
+        m_impl->configureFocusStack(config);
+        m_impl->focusStack->set_inputs(imagePointers);
+        
+        m_impl->isProcessing = true;
+        m_impl->isCompleted = false;
+        m_impl->hasError = false;
+        m_impl->errorMessage.clear();
+        
+        // Run processing synchronously
+        bool success = m_impl->focusStack->run();
+        
+        m_impl->isProcessing = false;
+        m_impl->isCompleted = true;
+        
+        if (!success) {
+            m_impl->hasError = true;
+            m_impl->errorMessage = "Processing failed";
+            return ErrorCode::ProcessingFailed;
+        }
+        
+        return VoidResult();
+    } catch (const std::exception& e) {
+        m_impl->isProcessing = false;
+        m_impl->hasError = true;
+        m_impl->errorMessage = e.what();
+        return ErrorCode::ProcessingFailed;
+    }
+}
+
 VoidResult ThreadSafeFocusStacker::startProcessing(const FocusStackOptions::Config& config) {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     
@@ -422,6 +473,25 @@ VoidResult ThreadSafeFocusStacker::addImage(const cv::Mat& image) {
     
     try {
         m_impl->focusStack->add_image(image);
+        return VoidResult();
+    } catch (const std::exception& e) {
+        return ErrorCode::ProcessingFailed;
+    }
+}
+
+VoidResult ThreadSafeFocusStacker::addImage(const cv::Mat* imagePointer) {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isProcessing) {
+        return ErrorCode::NotInitialized;
+    }
+    
+    if (!imagePointer) {
+        return ErrorCode::InvalidInput;
+    }
+    
+    try {
+        m_impl->focusStack->add_image(imagePointer);
         return VoidResult();
     } catch (const std::exception& e) {
         return ErrorCode::ProcessingFailed;
@@ -607,6 +677,36 @@ VoidResult ThreadSafeFocusStacker::alignImagesOnly(
     return ErrorCode::NotInitialized;
 }
 
+VoidResult ThreadSafeFocusStacker::alignImagesOnly(
+    const std::vector<const cv::Mat*>& imagePointers,
+    const std::string& outputPrefix,
+    const FocusStackOptions::Config& config) {
+    
+    if (imagePointers.empty()) {
+        return ErrorCode::InvalidInput;
+    }
+    
+    // Validate all pointers before processing
+    for (size_t i = 0; i < imagePointers.size(); ++i) {
+        if (!imagePointers[i]) {
+            return ErrorCode::InvalidInput;
+        }
+    }
+    
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (m_impl->isProcessing) {
+        return ErrorCode::ProcessingFailed;
+    }
+    
+    // For now, return not implemented
+    // The align-only functionality would require more complex implementation
+    // to save individual aligned images with the given prefix
+    (void)outputPrefix;  // Suppress unused parameter warning
+    (void)config;
+    return ErrorCode::NotInitialized;
+}
+
 VoidResult ThreadSafeFocusStacker::regenerateDepthMap() {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     
@@ -682,12 +782,59 @@ VoidResult EasyFocusStacker::processWithDefaults(
     return VoidResult();
 }
 
+VoidResult EasyFocusStacker::processWithDefaults(
+    const std::vector<const cv::Mat*>& imagePointers,
+    const std::string& outputPath) {
+    
+    FocusStackOptions options;
+    auto result = options.setOutput(outputPath);
+    if (!result) {
+        return result.error();
+    }
+    
+    auto configResult = options.build();
+    if (!configResult) {
+        return configResult.error();
+    }
+    
+    ThreadSafeFocusStacker stacker;
+    auto processResult = stacker.processImages(imagePointers, *configResult);
+    if (!processResult) {
+        return processResult.error();
+    }
+    
+    auto waitResult = stacker.waitForCompletion();
+    if (!waitResult) {
+        return waitResult.error();
+    }
+    
+    return VoidResult();
+}
+
 VoidResult EasyFocusStacker::processWithOptions(
     const std::vector<std::string>& imagePaths,
     const FocusStackOptions::Config& config) {
     
     ThreadSafeFocusStacker stacker;
     auto processResult = stacker.processImages(imagePaths, config);
+    if (!processResult) {
+        return processResult.error();
+    }
+    
+    auto waitResult = stacker.waitForCompletion();
+    if (!waitResult) {
+        return waitResult.error();
+    }
+    
+    return VoidResult();
+}
+
+VoidResult EasyFocusStacker::processWithOptions(
+    const std::vector<const cv::Mat*>& imagePointers,
+    const FocusStackOptions::Config& config) {
+    
+    ThreadSafeFocusStacker stacker;
+    auto processResult = stacker.processImages(imagePointers, config);
     if (!processResult) {
         return processResult.error();
     }

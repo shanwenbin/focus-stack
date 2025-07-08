@@ -45,6 +45,7 @@ public:
   };
 
   void set_inputs(const std::vector<std::string> &files) { m_inputs = files; }
+  void set_inputs(const std::vector<const cv::Mat*> &images);
   void set_output(std::string output) { m_output = output; }
   std::string get_output() const { return m_output; }
   void set_depthmap(std::string depthmap) { m_depthmap = depthmap; }
@@ -101,6 +102,7 @@ public:
   void start(); // Start worker threads.
   void add_image(std::string filename); // Add image from file, filename must remain valid until loading completes.
   void add_image(const cv::Mat &image); // Add image from memory, buffer can be reused after add_image() returns.
+  void add_image(const cv::Mat *image); // Add image from memory pointer, more efficient than reference version.
   void do_final_merge(); // Do final merge operations.
   void get_status(int &total_tasks, int &completed_tasks, std::string &running_task_name); // Query status on running tasks
   bool wait_done(bool &status, std::string &errmsg, int timeout_ms = -1); // Wait until all tasks have completed and retrieve status

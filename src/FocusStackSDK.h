@@ -208,11 +208,17 @@ public:
     VoidResult processImages(
         const std::vector<std::string>& imagePaths,
         const FocusStackOptions::Config& config);
+    
+    // Batch processing interface with pointers (more efficient)
+    VoidResult processImages(
+        const std::vector<const cv::Mat*>& imagePointers,
+        const FocusStackOptions::Config& config);
 
     // Streaming interface
     VoidResult startProcessing(const FocusStackOptions::Config& config);
     VoidResult addImage(const std::string& imagePath);
     VoidResult addImage(const cv::Mat& image);
+    VoidResult addImage(const cv::Mat* imagePointer);
     VoidResult finishProcessing();
 
     // Status and control
@@ -235,6 +241,12 @@ public:
         const std::vector<std::string>& imagePaths,
         const std::string& outputPrefix,
         const FocusStackOptions::Config& config);
+    
+    // Special operations with pointers (more efficient)
+    VoidResult alignImagesOnly(
+        const std::vector<const cv::Mat*>& imagePointers,
+        const std::string& outputPrefix,
+        const FocusStackOptions::Config& config);
 
     // Regeneration functions
     VoidResult regenerateDepthMap();
@@ -254,10 +266,20 @@ public:
     static VoidResult processWithDefaults(
         const std::vector<std::string>& imagePaths,
         const std::string& outputPath);
+    
+    // Simple processing with pointers (more efficient)
+    static VoidResult processWithDefaults(
+        const std::vector<const cv::Mat*>& imagePointers,
+        const std::string& outputPath);
 
     // Processing with custom options
     static VoidResult processWithOptions(
         const std::vector<std::string>& imagePaths,
+        const FocusStackOptions::Config& config);
+    
+    // Processing with pointers and custom options (more efficient)
+    static VoidResult processWithOptions(
+        const std::vector<const cv::Mat*>& imagePointers,
         const FocusStackOptions::Config& config);
 };
 

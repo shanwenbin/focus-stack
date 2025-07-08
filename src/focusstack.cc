@@ -16,6 +16,7 @@
 #include "task_background_removal.hh"
 #include "task_3dpreview.hh"
 #include <thread>
+#include <iostream>
 #include <opencv2/core/ocl.hpp>
 
 using namespace focusstack;
@@ -145,6 +146,42 @@ void FocusStack::add_image(const cv::Mat &image)
   }
 }
 
+void FocusStack::add_image(const cv::Mat *image)
+{
+  if (!image) {
+    throw std::invalid_argument("Image pointer cannot be null");
+  }
+  
+  std::string name = "memimg-ptr-" + std::to_string(m_input_images.size()) + ".jpg";
+  m_input_images.push_back(std::make_shared<Task_LoadImg>(name, image));
+
+  if (m_worker)
+  {
+    schedule_queue_processing();
+  }
+}
+
+void FocusStack::set_inputs(const std::vector<const cv::Mat*> &images)
+{
+  // Clear any existing file inputs since we're using memory images
+  m_inputs.clear();
+  m_input_images.clear();
+  
+  for (size_t i = 0; i < images.size(); ++i) {
+    if (!images[i]) {
+      throw std::invalid_argument("Image pointer at index " + std::to_string(i) + " cannot be null");
+    }
+    
+    std::string name = "memimg-batch-" + std::to_string(i) + ".jpg";
+    m_input_images.push_back(std::make_shared<Task_LoadImg>(name, images[i]));
+  }
+  
+  // If worker is already running, process the images immediately
+  if (m_worker) {
+    schedule_queue_processing();
+  }
+}
+
 void FocusStack::do_final_merge()
 {
   schedule_queue_processing();
@@ -192,7 +229,13 @@ void FocusStack::reset(bool keep_results)
 {
   m_scheduled_image_count = 0;
   m_refidx = -1;
-  m_input_images.clear();
+  
+  // Only clear m_input_images if we're using file-based inputs (m_inputs is not empty)
+  // If m_inputs is empty but m_input_images is not, we're using pointer-based inputs
+  if (!m_inputs.empty()) {
+    m_input_images.clear();
+  }
+  
   m_grayscale_imgs.clear();
   m_aligned_imgs.clear();
   m_aligned_grayscales.clear();
@@ -511,24 +554,27 @@ void FocusStack::schedule_final_merge()
 
   // Denoise merged image
   std::shared_ptr<ImgTask> denoised = m_prev_merge;
-  if (m_denoise > 0)
+  if (m_denoise > 0 && m_prev_merge)
   {
     denoised = std::make_shared<Task_Denoise>(m_prev_merge, m_denoise);
     m_worker->add(denoised);
   }
 
   // Inverse-transform merged image
-  if (!m_have_opencl)
+  if (denoised)
   {
-    m_merged_gray = std::make_shared<Task_Wavelet>(denoised, true);
+    if (!m_have_opencl)
+    {
+      m_merged_gray = std::make_shared<Task_Wavelet>(denoised, true);
+    }
+    else
+    {
+      m_merged_gray = std::make_shared<Task_Wavelet_OpenCL>(denoised, true);
+    }
+    m_worker->add(m_merged_gray);
   }
-  else
-  {
-    m_merged_gray = std::make_shared<Task_Wavelet_OpenCL>(denoised, true);
-  }
-  m_worker->add(m_merged_gray);
 
-  if (m_save_steps)
+  if (m_save_steps && m_merged_gray)
   {
     m_worker->add(std::make_shared<Task_SaveImg>(m_merged_gray->filename(), m_merged_gray, m_jpgquality, m_nocrop));
   }

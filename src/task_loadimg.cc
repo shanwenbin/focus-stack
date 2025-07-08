@@ -25,6 +25,20 @@ Task_LoadImg::Task_LoadImg(std::string name, const cv::Mat &img)
                       + std::chrono::milliseconds((int)(m_wait_images * 1000));
 }
 
+Task_LoadImg::Task_LoadImg(std::string name, const cv::Mat *img)
+{
+  if (!img) {
+    throw std::invalid_argument("Image pointer cannot be null");
+  }
+  
+  m_filename = name;
+  m_name = "Memory image pointer " + name;
+  m_result = img->clone(); // Clone the data to ensure safety
+  m_wait_images = 0;
+  m_wait_images_until = std::chrono::system_clock::now()
+                      + std::chrono::milliseconds((int)(m_wait_images * 1000));
+}
+
 bool Task_LoadImg::ready_to_run()
 {
   if (!ImgTask::ready_to_run())

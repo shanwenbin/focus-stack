@@ -10,6 +10,7 @@ class Task_LoadImg: public ImgTask
 public:
   Task_LoadImg(std::string filename, float wait_images = 0.0f);
   Task_LoadImg(std::string name, const cv::Mat &img);
+  Task_LoadImg(std::string name, const cv::Mat *img);
 
   virtual bool ready_to_run();
 

@@ -8,15 +8,19 @@ Task_Wavelet::Task_Wavelet(std::shared_ptr<ImgTask> input, bool inverse)
   m_input = input;
   m_inverse = inverse;
 
-  m_filename = input->filename();
-  m_index = input->index();
+  if (input) {
+    m_filename = input->filename();
+    m_index = input->index();
+    m_depends_on.push_back(input);
+  } else {
+    m_filename = "wavelet_result.jpg";
+    m_index = 0;
+  }
 
   if (inverse)
     m_name = "Inverse-wavelet " + m_filename;
   else
     m_name = "Forward-wavelet " + m_filename;
-
-  m_depends_on.push_back(input);
 }
 
 int Task_Wavelet::levels_for_size(cv::Size size, cv::Size *expanded_size)
@@ -60,6 +64,10 @@ int Task_Wavelet::levels_for_size(cv::Size size, cv::Size *expanded_size)
 
 void Task_Wavelet::task()
 {
+  if (!m_input) {
+    throw std::runtime_error("Task_Wavelet: input is null");
+  }
+
   if (!m_inverse)
   {
     // Perform decomposition from real-valued image to complex wavelets

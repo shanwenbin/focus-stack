@@ -10,6 +10,10 @@ Task_Wavelet_OpenCL::Task_Wavelet_OpenCL(std::shared_ptr<ImgTask> input, bool in
 
 void Task_Wavelet_OpenCL::task()
 {
+  if (!m_input) {
+    throw std::runtime_error("Task_Wavelet_OpenCL: input is null");
+  }
+
   if (!m_inverse)
   {
     // Perform decomposition from real-valued image to complex wavelets
