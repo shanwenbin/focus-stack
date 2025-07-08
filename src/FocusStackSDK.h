@@ -225,11 +225,17 @@ public:
     ProcessingProgress getStatus() const;
     VoidResult waitForCompletion(int timeoutMs = -1);
 
-    // Result access
+    // Result access (returns copies)
     Result<cv::Mat> getResultImage() const;
     Result<cv::Mat> getDepthMap() const;
     Result<cv::Mat> get3DPreview() const;
     Result<cv::Mat> getForegroundMask() const;
+    
+    // Result access (returns const pointers - zero-copy, more efficient)
+    const cv::Mat* getResultImagePtr() const;
+    const cv::Mat* getDepthMapPtr() const;
+    const cv::Mat* get3DPreviewPtr() const;
+    const cv::Mat* getForegroundMaskPtr() const;
 
     // Result saving
     VoidResult saveResult(const std::string& path) const;

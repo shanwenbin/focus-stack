@@ -47,6 +47,16 @@ $(shell mkdir -p build)
 all: build/focus-stack
 	which ronn && make update_docs || true
 
+zero_copy_output_example: build/zero_copy_output_example
+
+build/zero_copy_output_example: zero_copy_output_example.cc src/FocusStackSDK.cc $(OBJS)
+	$(CXX) $(CXXFLAGS) -I. -Isrc $< src/FocusStackSDK.cc $(OBJS) $(LDFLAGS) -o $@
+
+simple_pointer_output_test: build/simple_pointer_output_test
+
+build/simple_pointer_output_test: simple_pointer_output_test.cc src/FocusStackSDK.cc $(OBJS)
+	$(CXX) $(CXXFLAGS) -I. -Isrc $< src/FocusStackSDK.cc $(OBJS) $(LDFLAGS) -o $@
+
 update_docs: docs/focus-stack.1 docs/focus-stack.html
 
 run_unittests: build/unittests

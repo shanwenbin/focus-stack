@@ -606,6 +606,79 @@ Result<cv::Mat> ThreadSafeFocusStacker::getForegroundMask() const {
     }
 }
 
+// Zero-copy pointer access methods
+const cv::Mat* ThreadSafeFocusStacker::getResultImagePtr() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
+        return nullptr;
+    }
+    
+    try {
+        const cv::Mat& result = m_impl->focusStack->get_result_image();
+        if (result.empty()) {
+            return nullptr;
+        }
+        return &result;
+    } catch (const std::exception& e) {
+        return nullptr;
+    }
+}
+
+const cv::Mat* ThreadSafeFocusStacker::getDepthMapPtr() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
+        return nullptr;
+    }
+    
+    try {
+        const cv::Mat& result = m_impl->focusStack->get_result_depthmap();
+        if (result.empty()) {
+            return nullptr;
+        }
+        return &result;
+    } catch (const std::exception& e) {
+        return nullptr;
+    }
+}
+
+const cv::Mat* ThreadSafeFocusStacker::get3DPreviewPtr() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
+        return nullptr;
+    }
+    
+    try {
+        const cv::Mat& result = m_impl->focusStack->get_result_3dview();
+        if (result.empty()) {
+            return nullptr;
+        }
+        return &result;
+    } catch (const std::exception& e) {
+        return nullptr;
+    }
+}
+
+const cv::Mat* ThreadSafeFocusStacker::getForegroundMaskPtr() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
+        return nullptr;
+    }
+    
+    try {
+        const cv::Mat& result = m_impl->focusStack->get_result_mask();
+        if (result.empty()) {
+            return nullptr;
+        }
+        return &result;
+    } catch (const std::exception& e) {
+        return nullptr;
+    }
+}
+
 VoidResult ThreadSafeFocusStacker::saveResult(const std::string& path) const {
     auto result = getResultImage();
     if (!result) {
