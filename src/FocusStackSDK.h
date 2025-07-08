@@ -5,8 +5,13 @@
 #include <memory>
 #include <type_traits>
 
+// Conditional OpenCV inclusion
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
+#include <opencv2/opencv.hpp>
+#else
 // Forward declaration to avoid OpenCV dependency in header
 namespace cv { class Mat; }
+#endif
 
 namespace FocusStackSDK {
 
@@ -231,21 +236,27 @@ public:
         const std::vector<std::string>& imagePaths,
         const FocusStackOptions::Config& config);
     
-    // Batch processing interface with pointers (more efficient)
-    VoidResult processImages(
-        const std::vector<const cv::Mat*>& imagePointers,
-        const FocusStackOptions::Config& config);
-    
     // Batch processing interface with raw pointers (library-independent)
     VoidResult processRawImages(
         const std::vector<RawImageData>& rawImages,
         const FocusStackOptions::Config& config);
 
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
+    // Batch processing interface with pointers (more efficient)
+    VoidResult processImages(
+        const std::vector<const cv::Mat*>& imagePointers,
+        const FocusStackOptions::Config& config);
+#endif
+
     // Streaming interface
     VoidResult startProcessing(const FocusStackOptions::Config& config);
     VoidResult addImage(const std::string& imagePath);
+    
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
     VoidResult addImage(const cv::Mat& image);
     VoidResult addImage(const cv::Mat* imagePointer);
+#endif
+    
     VoidResult addRawImage(const RawImageData& rawImage);
     VoidResult finishProcessing();
 
@@ -253,6 +264,13 @@ public:
     ProcessingProgress getStatus() const;
     VoidResult waitForCompletion(int timeoutMs = -1);
 
+    // Result access (raw pointers - library-independent, zero-copy)
+    RawImageData getResultImageRaw() const;
+    RawImageData getDepthMapRaw() const;
+    RawImageData get3DPreviewRaw() const;
+    RawImageData getForegroundMaskRaw() const;
+
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
     // Result access (returns copies)
     Result<cv::Mat> getResultImage() const;
     Result<cv::Mat> getDepthMap() const;
@@ -264,12 +282,7 @@ public:
     const cv::Mat* getDepthMapPtr() const;
     const cv::Mat* get3DPreviewPtr() const;
     const cv::Mat* getForegroundMaskPtr() const;
-    
-    // Result access (raw pointers - library-independent, zero-copy)
-    RawImageData getResultImageRaw() const;
-    RawImageData getDepthMapRaw() const;
-    RawImageData get3DPreviewRaw() const;
-    RawImageData getForegroundMaskRaw() const;
+#endif
 
     // Result saving
     VoidResult saveResult(const std::string& path) const;
@@ -307,30 +320,34 @@ public:
         const std::vector<std::string>& imagePaths,
         const std::string& outputPath);
     
-    // Simple processing with pointers (more efficient)
-    static VoidResult processWithDefaults(
-        const std::vector<const cv::Mat*>& imagePointers,
-        const std::string& outputPath);
-    
     // Simple processing with raw pointers (library-independent)
     static VoidResult processWithDefaults(
         const std::vector<RawImageData>& rawImages,
         const std::string& outputPath);
+
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
+    // Simple processing with pointers (more efficient)
+    static VoidResult processWithDefaults(
+        const std::vector<const cv::Mat*>& imagePointers,
+        const std::string& outputPath);
+#endif
 
     // Processing with custom options
     static VoidResult processWithOptions(
         const std::vector<std::string>& imagePaths,
         const FocusStackOptions::Config& config);
     
-    // Processing with pointers and custom options (more efficient)
-    static VoidResult processWithOptions(
-        const std::vector<const cv::Mat*>& imagePointers,
-        const FocusStackOptions::Config& config);
-    
     // Processing with raw pointers and custom options (library-independent)
     static VoidResult processWithOptions(
         const std::vector<RawImageData>& rawImages,
         const FocusStackOptions::Config& config);
+
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
+    // Processing with pointers and custom options (more efficient)
+    static VoidResult processWithOptions(
+        const std::vector<const cv::Mat*>& imagePointers,
+        const FocusStackOptions::Config& config);
+#endif
 };
 
 } // namespace FocusStackSDK

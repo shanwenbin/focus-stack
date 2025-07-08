@@ -8,6 +8,11 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgcodecs.hpp>
 
+// Enable OpenCV methods in implementation
+#ifndef FOCUSSTACK_INCLUDE_OPENCV
+#define FOCUSSTACK_INCLUDE_OPENCV
+#endif
+
 namespace FocusStackSDK {
 
 // Utility functions for converting between cv::Mat and RawImageData
@@ -429,6 +434,7 @@ VoidResult ThreadSafeFocusStacker::processImages(
     }
 }
 
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
 VoidResult ThreadSafeFocusStacker::processImages(
     const std::vector<const cv::Mat*>& imagePointers,
     const FocusStackOptions::Config& config) {
@@ -479,6 +485,7 @@ VoidResult ThreadSafeFocusStacker::processImages(
         return ErrorCode::ProcessingFailed;
     }
 }
+#endif
 
 VoidResult ThreadSafeFocusStacker::processRawImages(
     const std::vector<RawImageData>& rawImages,
@@ -509,7 +516,37 @@ VoidResult ThreadSafeFocusStacker::processRawImages(
     }
     
     // Use existing cv::Mat pointer processing
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
     return processImages(matPointers, config);
+#else
+    // Direct processing without cv::Mat interface
+    try {
+        m_impl->isProcessing = true;
+        m_impl->isCompleted = false;
+        m_impl->hasError = false;
+        m_impl->errorMessage.clear();
+        
+        m_impl->focusStack = std::make_unique<focusstack::FocusStack>();
+        
+        bool success = m_impl->focusStack->process(matImages, config.outputPath, config.options);
+        
+        m_impl->isProcessing = false;
+        m_impl->isCompleted = true;
+        
+        if (!success) {
+            m_impl->hasError = true;
+            m_impl->errorMessage = "Processing failed";
+            return ErrorCode::ProcessingFailed;
+        }
+        
+        return VoidResult();
+    } catch (const std::exception& e) {
+        m_impl->isProcessing = false;
+        m_impl->hasError = true;
+        m_impl->errorMessage = e.what();
+        return ErrorCode::ProcessingFailed;
+    }
+#endif
 }
 
 VoidResult ThreadSafeFocusStacker::startProcessing(const FocusStackOptions::Config& config) {
@@ -548,6 +585,7 @@ VoidResult ThreadSafeFocusStacker::addImage(const std::string& imagePath) {
     }
 }
 
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
 VoidResult ThreadSafeFocusStacker::addImage(const cv::Mat& image) {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     
@@ -581,6 +619,7 @@ VoidResult ThreadSafeFocusStacker::addImage(const cv::Mat* imagePointer) {
         return ErrorCode::ProcessingFailed;
     }
 }
+#endif
 
 VoidResult ThreadSafeFocusStacker::addRawImage(const RawImageData& rawImage) {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
@@ -642,6 +681,7 @@ VoidResult ThreadSafeFocusStacker::waitForCompletion(int timeoutMs) {
     return VoidResult();
 }
 
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
 Result<cv::Mat> ThreadSafeFocusStacker::getResultImage() const {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     
@@ -786,48 +826,93 @@ const cv::Mat* ThreadSafeFocusStacker::getForegroundMaskPtr() const {
         return nullptr;
     }
 }
+#endif
 
 // Raw pointer access methods (library-independent)
 RawImageData ThreadSafeFocusStacker::getResultImageRaw() const {
-    const cv::Mat* matPtr = getResultImagePtr();
-    if (!matPtr) {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
         return RawImageData();
-    }
-    return matToRawImageData(*matPtr);
-}
-
-RawImageData ThreadSafeFocusStacker::getDepthMapRaw() const {
-    const cv::Mat* matPtr = getDepthMapPtr();
-    if (!matPtr) {
-        return RawImageData();
-    }
-    return matToRawImageData(*matPtr);
-}
-
-RawImageData ThreadSafeFocusStacker::get3DPreviewRaw() const {
-    const cv::Mat* matPtr = get3DPreviewPtr();
-    if (!matPtr) {
-        return RawImageData();
-    }
-    return matToRawImageData(*matPtr);
-}
-
-RawImageData ThreadSafeFocusStacker::getForegroundMaskRaw() const {
-    const cv::Mat* matPtr = getForegroundMaskPtr();
-    if (!matPtr) {
-        return RawImageData();
-    }
-    return matToRawImageData(*matPtr);
-}
-
-VoidResult ThreadSafeFocusStacker::saveResult(const std::string& path) const {
-    auto result = getResultImage();
-    if (!result) {
-        return result.error();
     }
     
     try {
-        if (!cv::imwrite(path, *result)) {
+        const cv::Mat& result = m_impl->focusStack->get_result_image();
+        if (result.empty()) {
+            return RawImageData();
+        }
+        return matToRawImageData(result);
+    } catch (const std::exception& e) {
+        return RawImageData();
+    }
+}
+
+RawImageData ThreadSafeFocusStacker::getDepthMapRaw() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
+        return RawImageData();
+    }
+    
+    try {
+        const cv::Mat& result = m_impl->focusStack->get_result_depthmap();
+        if (result.empty()) {
+            return RawImageData();
+        }
+        return matToRawImageData(result);
+    } catch (const std::exception& e) {
+        return RawImageData();
+    }
+}
+
+RawImageData ThreadSafeFocusStacker::get3DPreviewRaw() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
+        return RawImageData();
+    }
+    
+    try {
+        const cv::Mat& result = m_impl->focusStack->get_result_3dview();
+        if (result.empty()) {
+            return RawImageData();
+        }
+        return matToRawImageData(result);
+    } catch (const std::exception& e) {
+        return RawImageData();
+    }
+}
+
+RawImageData ThreadSafeFocusStacker::getForegroundMaskRaw() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    
+    if (!m_impl->isCompleted) {
+        return RawImageData();
+    }
+    
+    try {
+        const cv::Mat& result = m_impl->focusStack->get_result_mask();
+        if (result.empty()) {
+            return RawImageData();
+        }
+        return matToRawImageData(result);
+    } catch (const std::exception& e) {
+        return RawImageData();
+    }
+}
+
+VoidResult ThreadSafeFocusStacker::saveResult(const std::string& path) const {
+    RawImageData rawResult = getResultImageRaw();
+    if (!rawResult.isValid()) {
+        return ErrorCode::ProcessingFailed;
+    }
+    
+    try {
+        cv::Mat mat = rawImageDataToMat(rawResult);
+        if (mat.empty()) {
+            return ErrorCode::ProcessingFailed;
+        }
+        if (!cv::imwrite(path, mat)) {
             return ErrorCode::ProcessingFailed;
         }
         return VoidResult();
@@ -837,13 +922,17 @@ VoidResult ThreadSafeFocusStacker::saveResult(const std::string& path) const {
 }
 
 VoidResult ThreadSafeFocusStacker::saveDepthMap(const std::string& path) const {
-    auto result = getDepthMap();
-    if (!result) {
-        return result.error();
+    RawImageData rawResult = getDepthMapRaw();
+    if (!rawResult.isValid()) {
+        return ErrorCode::ProcessingFailed;
     }
     
     try {
-        if (!cv::imwrite(path, *result)) {
+        cv::Mat mat = rawImageDataToMat(rawResult);
+        if (mat.empty()) {
+            return ErrorCode::ProcessingFailed;
+        }
+        if (!cv::imwrite(path, mat)) {
             return ErrorCode::ProcessingFailed;
         }
         return VoidResult();
@@ -853,13 +942,17 @@ VoidResult ThreadSafeFocusStacker::saveDepthMap(const std::string& path) const {
 }
 
 VoidResult ThreadSafeFocusStacker::save3DPreview(const std::string& path) const {
-    auto result = get3DPreview();
-    if (!result) {
-        return result.error();
+    RawImageData rawResult = get3DPreviewRaw();
+    if (!rawResult.isValid()) {
+        return ErrorCode::ProcessingFailed;
     }
     
     try {
-        if (!cv::imwrite(path, *result)) {
+        cv::Mat mat = rawImageDataToMat(rawResult);
+        if (mat.empty()) {
+            return ErrorCode::ProcessingFailed;
+        }
+        if (!cv::imwrite(path, mat)) {
             return ErrorCode::ProcessingFailed;
         }
         return VoidResult();
@@ -996,6 +1089,7 @@ VoidResult EasyFocusStacker::processWithDefaults(
     return VoidResult();
 }
 
+#ifdef FOCUSSTACK_INCLUDE_OPENCV
 VoidResult EasyFocusStacker::processWithDefaults(
     const std::vector<const cv::Mat*>& imagePointers,
     const std::string& outputPath) {
@@ -1024,6 +1118,7 @@ VoidResult EasyFocusStacker::processWithDefaults(
     
     return VoidResult();
 }
+#endif
 
 VoidResult EasyFocusStacker::processWithOptions(
     const std::vector<std::string>& imagePaths,
